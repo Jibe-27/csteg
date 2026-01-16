@@ -3,149 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spreadsheet Filter & Export</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <title>Filtreur de Fichiers Tableur</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        * { font-family: 'Inter', sans-serif; }
-        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); }
-        .table-container { max-height: 500px; overflow: auto; scrollbar-width: thin; scrollbar-color: #667eea #f1f1f1; }
-        .table-container::-webkit-scrollbar { width: 8px; height: 8px; }
-        .table-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-        .table-container::-webkit-scrollbar-thumb { background: #667eea; border-radius: 4px; }
-        thead { position: sticky; top: 0; z-index: 10; }
-        .loader { border-top-color: #667eea; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .fade-in { animation: fadeIn 0.4s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; transition: transform 0.2s; }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3); }
-        .btn-secondary { background: white; color: #667eea; border: 2px solid #667eea; transition: all 0.2s; }
-        .btn-secondary:hover { background: #667eea; color: white; }
-        .upload-zone { border: 3px dashed #cbd5e0; transition: all 0.3s; }
-        .upload-zone.drag-over { border-color: #667eea; background: rgba(102, 126, 234, 0.1); }
-        .filter-item { background: white; border: 2px solid #e2e8f0; transition: all 0.2s; }
-        .filter-item:hover { border-color: #667eea; }
-    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="container mx-auto p-6 max-w-7xl">
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
         <!-- Header -->
-        <div class="text-center mb-8 fade-in">
-            <h1 class="text-5xl font-bold text-white mb-2 drop-shadow-lg">📊 Spreadsheet Pro</h1>
-            <p class="text-white text-opacity-90">Filtrage avancé avec opérateurs SQL-like (%, AND, OR)</p>
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <h1 class="text-4xl font-bold text-slate-800 mb-2">📊 Filtreur de Fichiers Tableur</h1>
+            <p class="text-slate-600">Chargez, filtrez et exportez des fichiers CSV/Excel jusqu'à 1M+ lignes</p>
         </div>
 
-        <!-- Upload -->
-        <div class="glass rounded-2xl shadow-2xl p-8 mb-6 fade-in">
-            <label class="block text-lg font-semibold text-gray-800 mb-3">📁 Charger un fichier</label>
-            <div id="uploadZone" class="upload-zone rounded-xl p-8 text-center cursor-pointer">
-                <svg class="mx-auto h-16 w-16 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                </svg>
-                <p class="text-lg font-semibold text-gray-700">Glissez un fichier ici ou cliquez pour parcourir</p>
-                <p class="text-sm text-gray-500 mt-2">CSV, XLSX, XLS · Jusqu'à 1M+ lignes</p>
-                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" class="hidden"/>
+        <!-- File Upload Section -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Fichier</label>
+                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" 
+                    class="block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
             </div>
             
-            <!-- CSV Options -->
-            <div id="csvOptions" class="mt-6 hidden">
-                <label class="block text-sm font-semibold text-gray-700 mb-3">⚙️ Séparateur CSV</label>
-                <div class="grid grid-cols-4 gap-3">
-                    <button class="delimiter-btn py-2 px-4 rounded-lg border-2 font-medium transition" data-value="auto">Auto</button>
-                    <button class="delimiter-btn py-2 px-4 rounded-lg border-2 font-medium transition" data-value=",">Virgule (,)</button>
-                    <button class="delimiter-btn py-2 px-4 rounded-lg border-2 font-medium transition" data-value=";">Point-virgule (;)</button>
-                    <button class="delimiter-btn py-2 px-4 rounded-lg border-2 font-medium transition" data-value="\t">Tabulation</button>
+            <div id="csvOptions" class="hidden mb-4">
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Séparateur CSV</label>
+                <select id="delimiter" class="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="auto">Auto-détection</option>
+                    <option value=";">Point-virgule (;)</option>
+                    <option value=",">Virgule (,)</option>
+                    <option value="\t">Tabulation</option>
+                </select>
+            </div>
+
+            <div id="progress" class="hidden mb-4">
+                <div class="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                    <div id="progressBar" class="bg-gradient-to-r from-blue-500 to-purple-600 h-3 transition-all duration-300" style="width: 0%"></div>
                 </div>
+                <p id="progressText" class="text-sm text-slate-600 mt-2 text-center"></p>
             </div>
         </div>
 
-        <!-- Progress -->
-        <div id="progress" class="hidden glass rounded-2xl shadow-xl p-6 mb-6 fade-in">
-            <div class="flex items-center">
-                <div class="loader border-4 border-gray-200 rounded-full w-8 h-8 mr-4"></div>
-                <div>
-                    <div class="font-semibold text-gray-800" id="progressText">Chargement...</div>
-                    <div class="text-sm text-gray-500">Veuillez patienter</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Stats & Actions -->
-        <div id="statsSection" class="hidden fade-in">
-            <!-- Stats -->
-            <div class="grid grid-cols-4 gap-4 mb-6">
-                <div class="glass rounded-xl shadow-lg p-6 text-center">
-                    <div class="text-sm text-gray-600 mb-1">Total</div>
-                    <div class="text-3xl font-bold text-purple-600" id="totalRows">0</div>
-                </div>
-                <div class="glass rounded-xl shadow-lg p-6 text-center">
-                    <div class="text-sm text-gray-600 mb-1">Filtrées</div>
-                    <div class="text-3xl font-bold text-purple-600" id="filteredRows">0</div>
-                </div>
-                <div class="glass rounded-xl shadow-lg p-6 text-center">
-                    <div class="text-sm text-gray-600 mb-1">Colonnes</div>
-                    <div class="text-3xl font-bold text-purple-600" id="columnCount">0</div>
-                </div>
-                <div class="glass rounded-xl shadow-lg p-6 text-center">
-                    <div class="text-sm text-gray-600 mb-1">Aperçu</div>
-                    <div class="text-3xl font-bold text-purple-600" id="previewRows">0</div>
-                </div>
-            </div>
-
-            <!-- Global Filters -->
-            <div class="glass rounded-2xl shadow-xl p-6 mb-6">
-                <div class="flex items-center justify-between mb-4">
-                    <label class="text-sm font-semibold text-gray-700">🔍 Filtres globaux</label>
-                    <div class="flex gap-2">
-                        <select id="globalOperator" class="px-3 py-1 border-2 border-purple-500 rounded-lg text-sm font-semibold">
-                            <option value="AND">AND</option>
-                            <option value="OR">OR</option>
-                        </select>
-                        <button id="addGlobalFilter" class="btn-primary px-4 py-1 rounded-lg text-sm font-semibold">+ Ajouter</button>
-                    </div>
-                </div>
-                <div id="globalFilters" class="space-y-3"></div>
-                <div class="text-xs text-gray-500 mt-3">
-                    💡 Astuce : Utilisez <code class="bg-gray-100 px-1 rounded">%</code> comme joker (ex: <code class="bg-gray-100 px-1 rounded">Jean%</code> ou <code class="bg-gray-100 px-1 rounded">%2024%</code>)
-                </div>
-            </div>
-
-            <!-- Column Filters -->
-            <div class="glass rounded-2xl shadow-xl p-6 mb-6">
-                <div class="flex items-center justify-between mb-4">
-                    <label class="text-sm font-semibold text-gray-700">🎯 Filtres par colonne</label>
-                    <button id="clearColumnFilters" class="text-sm text-purple-600 hover:text-purple-800 font-medium">Effacer tout</button>
-                </div>
-                <div id="columnFiltersContainer"></div>
-            </div>
-
-            <!-- Export Buttons -->
-            <div class="glass rounded-2xl shadow-xl p-6 mb-6">
-                <label class="block text-sm font-semibold text-gray-700 mb-3">💾 Exporter les données filtrées</label>
-                <div class="flex gap-4">
-                    <button id="exportCSV" class="btn-primary flex-1 py-3 px-6 rounded-xl font-semibold shadow-lg">
-                        📄 Exporter en CSV
-                    </button>
-                    <button id="exportXLSX" class="btn-secondary flex-1 py-3 px-6 rounded-xl font-semibold shadow-lg">
-                        📗 Exporter en XLSX
+        <!-- Filters Section -->
+        <div id="filtersSection" class="hidden bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-slate-800">🔍 Filtres</h2>
+                <div class="flex gap-2">
+                    <select id="filterLogic" class="px-4 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                        <option value="AND">ET (AND)</option>
+                        <option value="OR">OU (OR)</option>
+                    </select>
+                    <button onclick="addFilter()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition font-semibold text-sm">
+                        + Ajouter un filtre
                     </button>
                 </div>
             </div>
+            
+            <div id="filtersList" class="space-y-3"></div>
+            
+            <div class="mt-4 flex gap-2">
+                <button onclick="applyFilters()" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold shadow-lg">
+                    Appliquer les filtres
+                </button>
+                <button onclick="clearFilters()" class="px-6 py-3 bg-slate-400 text-white rounded-lg hover:bg-slate-500 transition font-semibold">
+                    Réinitialiser
+                </button>
+            </div>
+            
+            <div id="filterStats" class="mt-4 text-sm text-slate-600"></div>
         </div>
 
-        <!-- Table Preview -->
-        <div id="tableSection" class="hidden glass rounded-2xl shadow-2xl overflow-hidden fade-in">
-            <div class="p-4 bg-gradient-to-r from-purple-600 to-indigo-600">
-                <h3 class="text-white font-semibold">📋 Aperçu (premières lignes)</h3>
+        <!-- Table Section -->
+        <div id="tableSection" class="hidden bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-slate-800">📋 Aperçu des données</h2>
+                <div class="flex gap-2">
+                    <button onclick="exportCSV()" class="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition font-semibold text-sm shadow">
+                        📥 Export CSV
+                    </button>
+                    <button onclick="exportXLSX()" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition font-semibold text-sm shadow">
+                        📥 Export XLSX
+                    </button>
+                </div>
             </div>
-            <div class="table-container">
-                <table id="dataTable" class="min-w-full">
-                    <thead class="bg-gray-100"></thead>
-                    <tbody class="bg-white divide-y divide-gray-100"></tbody>
+            
+            <div class="overflow-auto max-h-[600px] border border-slate-200 rounded-lg">
+                <table id="dataTable" class="min-w-full divide-y divide-slate-200">
+                    <thead id="tableHead" class="bg-slate-50 sticky top-0"></thead>
+                    <tbody id="tableBody" class="bg-white divide-y divide-slate-100"></tbody>
                 </table>
             </div>
         </div>
@@ -155,309 +99,285 @@
         let allData = [];
         let filteredData = [];
         let headers = [];
-        let globalFilters = [];
-        let columnFilters = {};
-        let selectedDelimiter = 'auto';
-        const PREVIEW_LIMIT = 500;
+        let columnOrder = [];
+        let filters = [];
+        const MAX_DISPLAY_ROWS = 500;
+        let filterIdCounter = 0;
+        let sortableInstance = null;
 
-        const els = {
-            uploadZone: document.getElementById('uploadZone'),
-            file: document.getElementById('fileInput'),
-            csvOptions: document.getElementById('csvOptions'),
-            progress: document.getElementById('progress'),
-            progressText: document.getElementById('progressText'),
-            statsSection: document.getElementById('statsSection'),
-            tableSection: document.getElementById('tableSection'),
-            globalFilters: document.getElementById('globalFilters'),
-            globalOperator: document.getElementById('globalOperator'),
-            addGlobalFilter: document.getElementById('addGlobalFilter'),
-            columnFiltersContainer: document.getElementById('columnFiltersContainer'),
-            clearColumnFilters: document.getElementById('clearColumnFilters'),
-            exportCSV: document.getElementById('exportCSV'),
-            exportXLSX: document.getElementById('exportXLSX'),
-            thead: document.querySelector('#dataTable thead'),
-            tbody: document.querySelector('#dataTable tbody'),
-            totalRows: document.getElementById('totalRows'),
-            filteredRows: document.getElementById('filteredRows'),
-            columnCount: document.getElementById('columnCount'),
-            previewRows: document.getElementById('previewRows')
-        };
-
-        // Drag & Drop
-        els.uploadZone.addEventListener('click', () => els.file.click());
-        els.uploadZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            els.uploadZone.classList.add('drag-over');
-        });
-        els.uploadZone.addEventListener('dragleave', () => {
-            els.uploadZone.classList.remove('drag-over');
-        });
-        els.uploadZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            els.uploadZone.classList.remove('drag-over');
-            els.file.files = e.dataTransfer.files;
-            handleFile();
+        // File input handler
+        document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+        document.getElementById('delimiter').addEventListener('change', () => {
+            const file = document.getElementById('fileInput').files[0];
+            if (file && file.name.endsWith('.csv')) handleFileSelect();
         });
 
-        // Event listeners
-        els.file.addEventListener('change', handleFile);
-        els.addGlobalFilter.addEventListener('click', addGlobalFilter);
-        els.globalOperator.addEventListener('change', applyFilters);
-        els.clearColumnFilters.addEventListener('click', clearColumnFilters);
-        els.exportCSV.addEventListener('click', () => exportData('csv'));
-        els.exportXLSX.addEventListener('click', () => exportData('xlsx'));
-
-        // Delimiter selection
-        document.querySelectorAll('.delimiter-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.delimiter-btn').forEach(b => {
-                    b.className = 'delimiter-btn py-2 px-4 rounded-lg border-2 border-gray-300 font-medium transition hover:border-purple-500';
-                });
-                this.className = 'delimiter-btn py-2 px-4 rounded-lg border-2 border-purple-500 bg-purple-50 font-medium transition';
-                selectedDelimiter = this.dataset.value;
-                if (els.file.files[0]) handleFile();
-            });
-        });
-        document.querySelector('[data-value="auto"]').click();
-
-        function handleFile() {
-            const file = els.file.files[0];
+        function handleFileSelect() {
+            const file = document.getElementById('fileInput').files[0];
             if (!file) return;
 
             const ext = file.name.split('.').pop().toLowerCase();
-            showProgress('Chargement...');
-            allData = [];
-            headers = [];
-            globalFilters = [];
-            columnFilters = {};
-
+            
             if (ext === 'csv') {
-                els.csvOptions.classList.remove('hidden');
+                document.getElementById('csvOptions').classList.remove('hidden');
                 parseCSV(file);
-            } else {
-                els.csvOptions.classList.add('hidden');
+            } else if (ext === 'xlsx' || ext === 'xls') {
+                document.getElementById('csvOptions').classList.add('hidden');
                 parseExcel(file);
             }
         }
 
         function parseCSV(file) {
-            const delim = selectedDelimiter === 'auto' ? '' : selectedDelimiter;
-            
-            Papa.parse(file, {
-                delimiter: delim,
+            showProgress(true);
+            const delimiter = document.getElementById('delimiter').value;
+            const config = {
+                delimiter: delimiter === 'auto' ? '' : delimiter,
                 header: true,
+                dynamicTyping: false,
                 skipEmptyLines: true,
                 worker: true,
-                chunk: (results) => {
+                chunk: (results, parser) => {
                     allData.push(...results.data);
-                    els.progressText.textContent = `Chargé: ${allData.length.toLocaleString()} lignes`;
+                    updateProgress(file.size > 0 ? (allData.length * 100) / 100000 : 50);
                 },
                 complete: () => {
-                    if (allData.length > 0) {
-                        headers = Object.keys(allData[0]);
-                        finishLoading();
-                    }
+                    finishLoading();
+                },
+                error: (err) => {
+                    alert('Erreur lors du parsing CSV: ' + err.message);
+                    showProgress(false);
                 }
-            });
+            };
+            
+            Papa.parse(file, config);
         }
 
         function parseExcel(file) {
+            showProgress(true);
             const reader = new FileReader();
+            
             reader.onload = (e) => {
-                const data = new Uint8Array(e.target.result);
-                const wb = XLSX.read(data, { type: 'array' });
-                const ws = wb.Sheets[wb.SheetNames[0]];
-                allData = XLSX.utils.sheet_to_json(ws);
-                
-                if (allData.length > 0) {
-                    headers = Object.keys(allData[0]);
+                try {
+                    updateProgress(50);
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    allData = XLSX.utils.sheet_to_json(firstSheet, { raw: false, defval: '' });
+                    updateProgress(100);
                     finishLoading();
+                } catch (err) {
+                    alert('Erreur lors du parsing Excel: ' + err.message);
+                    showProgress(false);
                 }
             };
+            
             reader.readAsArrayBuffer(file);
         }
 
         function finishLoading() {
-            hideProgress();
-            filteredData = allData;
-            createColumnFiltersUI();
-            updateStats();
-            renderTable();
-            els.statsSection.classList.remove('hidden');
-            els.tableSection.classList.remove('hidden');
-        }
-
-        function addGlobalFilter() {
-            const id = Date.now();
-            globalFilters.push({ id, column: headers[0], value: '' });
-            renderGlobalFilters();
-        }
-
-        function renderGlobalFilters() {
-            els.globalFilters.innerHTML = globalFilters.map((f, idx) => `
-                <div class="filter-item rounded-lg p-4">
-                    <div class="flex gap-3 items-center">
-                        <span class="text-sm font-semibold text-purple-600">${idx > 0 ? els.globalOperator.value : ''}</span>
-                        <select class="flex-1 px-3 py-2 border rounded-lg" onchange="updateGlobalFilter(${f.id}, 'column', this.value)">
-                            ${headers.map(h => `<option value="${h}" ${f.column === h ? 'selected' : ''}>${h}</option>`).join('')}
-                        </select>
-                        <input type="text" 
-                               value="${f.value}"
-                               placeholder="Valeur (utilisez % comme joker)"
-                               class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:border-purple-500"
-                               oninput="updateGlobalFilter(${f.id}, 'value', this.value)"/>
-                        <button onclick="removeGlobalFilter(${f.id})" class="text-red-500 hover:text-red-700 font-bold">✕</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function updateGlobalFilter(id, field, value) {
-            const filter = globalFilters.find(f => f.id === id);
-            if (filter) {
-                filter[field] = value;
-                debounceApply();
+            if (allData.length > 0) {
+                headers = Object.keys(allData[0]);
+                columnOrder = [...headers];
+                filteredData = [...allData];
+                initializeFilters();
+                renderTable();
+                updateFilterStats();
+                document.getElementById('filtersSection').classList.remove('hidden');
+                document.getElementById('tableSection').classList.remove('hidden');
             }
+            showProgress(false);
         }
 
-        function removeGlobalFilter(id) {
-            globalFilters = globalFilters.filter(f => f.id !== id);
-            renderGlobalFilters();
-            applyFilters();
+        function showProgress(show) {
+            document.getElementById('progress').classList.toggle('hidden', !show);
+            if (!show) updateProgress(0);
         }
 
-        function createColumnFiltersUI() {
-            const columnFiltersList = {};
-            headers.forEach(h => columnFiltersList[h] = []);
-
-            const renderColumn = (col) => {
-                const filters = columnFiltersList[col];
-                const colDiv = document.getElementById(`col-${col}`);
-                if (!colDiv) return;
-
-                const filtersHTML = filters.map((f, idx) => `
-                    <div class="flex gap-2 items-center mt-2">
-                        <span class="text-xs text-purple-600 font-semibold w-8">${idx > 0 ? 'OR' : ''}</span>
-                        <input type="text" 
-                               value="${f}"
-                               placeholder="% = joker"
-                               class="flex-1 px-2 py-1 text-sm border rounded focus:outline-none focus:border-purple-500"
-                               oninput="updateColumnFilter('${col}', ${idx}, this.value)"/>
-                        <button onclick="removeColumnFilter('${col}', ${idx})" class="text-red-500 hover:text-red-700 text-xs font-bold">✕</button>
-                    </div>
-                `).join('');
-
-                colDiv.querySelector('.column-filters-list').innerHTML = filtersHTML;
-            };
-
-            els.columnFiltersContainer.innerHTML = headers.map(h => `
-                <div id="col-${h}" class="mb-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="text-sm font-semibold text-gray-700">${h}</label>
-                        <button onclick="addColumnFilter('${h}')" class="text-xs text-purple-600 hover:text-purple-800 font-semibold">+ OR</button>
-                    </div>
-                    <div class="column-filters-list"></div>
-                </div>
-            `).join('');
-
-            window.addColumnFilter = (col) => {
-                columnFiltersList[col].push('');
-                columnFilters[col] = columnFiltersList[col];
-                renderColumn(col);
-            };
-
-            window.updateColumnFilter = (col, idx, value) => {
-                columnFiltersList[col][idx] = value;
-                columnFilters[col] = columnFiltersList[col].filter(v => v.trim());
-                debounceApply();
-            };
-
-            window.removeColumnFilter = (col, idx) => {
-                columnFiltersList[col].splice(idx, 1);
-                columnFilters[col] = columnFiltersList[col].filter(v => v.trim());
-                renderColumn(col);
-                applyFilters();
-            };
+        function updateProgress(percent) {
+            const bar = document.getElementById('progressBar');
+            const text = document.getElementById('progressText');
+            const clamped = Math.min(100, Math.max(0, percent));
+            bar.style.width = clamped + '%';
+            text.textContent = `Chargement: ${Math.round(clamped)}%`;
         }
 
-        function clearColumnFilters() {
-            columnFilters = {};
-            createColumnFiltersUI();
-            applyFilters();
+        function initializeFilters() {
+            filters = [];
+            filterIdCounter = 0;
+            document.getElementById('filtersList').innerHTML = '';
+            addFilter();
         }
 
-        function matchPattern(value, pattern) {
-            if (!pattern) return true;
-            const val = String(value || '').toLowerCase();
-            const pat = pattern.toLowerCase().replace(/%/g, '.*');
-            return new RegExp(`^${pat}$`).test(val);
+        function addFilter(column = '', value = '') {
+            const filterId = filterIdCounter++;
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'flex gap-2 items-center bg-slate-50 p-3 rounded-lg';
+            filterDiv.id = `filter-${filterId}`;
+            
+            filterDiv.innerHTML = `
+                <select class="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:ring-2 focus:ring-blue-500" data-filter-id="${filterId}" data-type="column">
+                    <option value="">Recherche globale</option>
+                    ${headers.map(h => `<option value="${h}" ${h === column ? 'selected' : ''}>${h}</option>`).join('')}
+                </select>
+                <input type="text" placeholder="Valeur (utilisez %% comme joker)" value="${value}"
+                    class="px-3 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:ring-2 focus:ring-blue-500" 
+                    data-filter-id="${filterId}" data-type="value">
+                <button onclick="removeFilter(${filterId})" class="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-sm font-semibold">
+                    ✕
+                </button>
+            `;
+            
+            document.getElementById('filtersList').appendChild(filterDiv);
+            
+            filters.push({ id: filterId, column: column, value: value });
+        }
+
+        function removeFilter(filterId) {
+            const filterDiv = document.getElementById(`filter-${filterId}`);
+            if (filterDiv) filterDiv.remove();
+            filters = filters.filter(f => f.id !== filterId);
+            if (filters.length === 0) addFilter();
+        }
+
+        function getFilterValues() {
+            const result = [];
+            filters.forEach(f => {
+                const columnSelect = document.querySelector(`select[data-filter-id="${f.id}"]`);
+                const valueInput = document.querySelector(`input[data-filter-id="${f.id}"]`);
+                if (columnSelect && valueInput) {
+                    const column = columnSelect.value;
+                    const value = valueInput.value.trim();
+                    if (value) {
+                        result.push({ column, value });
+                    }
+                }
+            });
+            return result;
         }
 
         function applyFilters() {
-            const operator = els.globalOperator.value;
-
-            filteredData = allData.filter(row => {
-                // Global filters
-                if (globalFilters.length > 0) {
-                    const results = globalFilters.map(f => matchPattern(row[f.column], f.value));
-                    const match = operator === 'AND' ? results.every(r => r) : results.some(r => r);
-                    if (!match) return false;
-                }
-
-                // Column filters (OR within column)
-                for (let col in columnFilters) {
-                    if (columnFilters[col].length > 0) {
-                        const match = columnFilters[col].some(pattern => matchPattern(row[col], pattern));
-                        if (!match) return false;
-                    }
-                }
-
-                return true;
-            });
-
-            updateStats();
+            const activeFilters = getFilterValues();
+            const logic = document.getElementById('filterLogic').value;
+            
+            if (activeFilters.length === 0) {
+                filteredData = [...allData];
+            } else {
+                filteredData = allData.filter(row => {
+                    const matches = activeFilters.map(filter => matchFilter(row, filter));
+                    return logic === 'AND' ? matches.every(m => m) : matches.some(m => m);
+                });
+            }
+            
             renderTable();
+            updateFilterStats();
         }
 
-        const debounceApply = debounce(applyFilters, 300);
+        function matchFilter(row, filter) {
+            const value = filter.value.toLowerCase();
+            const isWildcard = value.includes('%%');
+            
+            if (filter.column === '') {
+                // Global search
+                return Object.values(row).some(cellValue => {
+                    const cell = String(cellValue || '').toLowerCase();
+                    return isWildcard ? matchWildcard(cell, value) : cell.includes(value);
+                });
+            } else {
+                // Column-specific search
+                const cell = String(row[filter.column] || '').toLowerCase();
+                return isWildcard ? matchWildcard(cell, value) : cell.includes(value);
+            }
+        }
+
+        function matchWildcard(text, pattern) {
+            const regex = new RegExp('^' + pattern.split('%%').map(escapeRegex).join('.*') + '$');
+            return regex.test(text);
+        }
+
+        function escapeRegex(str) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function clearFilters() {
+            initializeFilters();
+            filteredData = [...allData];
+            renderTable();
+            updateFilterStats();
+        }
+
+        function updateFilterStats() {
+            const stats = document.getElementById('filterStats');
+            stats.innerHTML = `
+                <span class="font-semibold">Total:</span> ${allData.length.toLocaleString('fr-FR')} lignes | 
+                <span class="font-semibold">Filtrées:</span> ${filteredData.length.toLocaleString('fr-FR')} lignes | 
+                <span class="font-semibold">Affichées:</span> ${Math.min(filteredData.length, MAX_DISPLAY_ROWS).toLocaleString('fr-FR')} lignes
+            `;
+        }
 
         function renderTable() {
-            els.thead.innerHTML = `<tr>${headers.map(h => 
-                `<th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider bg-gray-100">${h}</th>`
-            ).join('')}</tr>`;
+            const thead = document.getElementById('tableHead');
+            const tbody = document.getElementById('tableBody');
+            
+            // Render headers with drag & drop
+            thead.innerHTML = `<tr class="select-none">
+                ${columnOrder.map(h => `<th class="px-4 py-3 text-left text-xs font-bold text-slate-700 uppercase tracking-wider cursor-move bg-slate-50" data-column="${h}">${h}</th>`).join('')}
+            </tr>`;
+            
+            // Initialize Sortable for drag & drop
+            if (sortableInstance) sortableInstance.destroy();
+            sortableInstance = Sortable.create(thead.querySelector('tr'), {
+                animation: 150,
+                onEnd: (evt) => {
+                    const oldIndex = evt.oldIndex;
+                    const newIndex = evt.newIndex;
+                    const [moved] = columnOrder.splice(oldIndex, 1);
+                    columnOrder.splice(newIndex, 0, moved);
+                    renderTableBody();
+                }
+            });
+            
+            renderTableBody();
+        }
 
-            const preview = filteredData.slice(0, PREVIEW_LIMIT);
-            els.tbody.innerHTML = preview.map(row => `
-                <tr class="hover:bg-purple-50 transition-colors">
-                    ${headers.map(h => `<td class="px-6 py-3 text-sm text-gray-800">${row[h] ?? ''}</td>`).join('')}
+        function renderTableBody() {
+            const tbody = document.getElementById('tableBody');
+            const displayData = filteredData.slice(0, MAX_DISPLAY_ROWS);
+            
+            tbody.innerHTML = displayData.map(row => `
+                <tr class="hover:bg-slate-50 transition">
+                    ${columnOrder.map(h => `<td class="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">${escapeHtml(row[h] || '')}</td>`).join('')}
                 </tr>
             `).join('');
         }
 
-        function updateStats() {
-            els.totalRows.textContent = allData.length.toLocaleString();
-            els.filteredRows.textContent = filteredData.length.toLocaleString();
-            els.columnCount.textContent = headers.length;
-            els.previewRows.textContent = Math.min(filteredData.length, PREVIEW_LIMIT).toLocaleString();
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
-        function exportData(format) {
-            if (filteredData.length === 0) {
-                alert('Aucune donnée à exporter');
-                return;
-            }
+        function exportCSV() {
+            const orderedData = filteredData.map(row => {
+                const ordered = {};
+                columnOrder.forEach(col => ordered[col] = row[col]);
+                return ordered;
+            });
+            
+            const csv = Papa.unparse(orderedData);
+            downloadFile(csv, 'export.csv', 'text/csv');
+        }
 
-            const filename = `export_${new Date().toISOString().slice(0,10)}`;
-
-            if (format === 'csv') {
-                const csv = Papa.unparse(filteredData);
-                downloadFile(csv, `${filename}.csv`, 'text/csv');
-            } else {
-                const ws = XLSX.utils.json_to_sheet(filteredData);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Export');
-                XLSX.writeFile(wb, `${filename}.xlsx`);
-            }
+        function exportXLSX() {
+            const orderedData = filteredData.map(row => {
+                const ordered = {};
+                columnOrder.forEach(col => ordered[col] = row[col];
+                return ordered;
+            });
+            
+            const ws = XLSX.utils.json_to_sheet(orderedData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Export');
+            XLSX.writeFile(wb, 'export.xlsx');
         }
 
         function downloadFile(content, filename, type) {
@@ -468,23 +388,6 @@
             a.download = filename;
             a.click();
             URL.revokeObjectURL(url);
-        }
-
-        function showProgress(text) {
-            els.progressText.textContent = text;
-            els.progress.classList.remove('hidden');
-        }
-
-        function hideProgress() {
-            els.progress.classList.add('hidden');
-        }
-
-        function debounce(fn, delay) {
-            let timer;
-            return (...args) => {
-                clearTimeout(timer);
-                timer = setTimeout(() => fn(...args), delay);
-            };
         }
     </script>
 </body>
